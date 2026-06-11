@@ -1,0 +1,24 @@
+{
+  "name": "sister-clark-agent",
+  "version": "1.0.0",
+  "description": "Outreach agent backend for Sister Clark",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.52.0",
+    "@hono/node-server": "^1.13.8",
+    "@supabase/supabase-js": "^2.49.4",
+    "dotenv": "^16.5.0",
+    "hono": "^4.7.11",
+    "resend": "^4.5.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  }
+}
