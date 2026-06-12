@@ -21,8 +21,7 @@ async function textSearch(query: string, apiKey: string): Promise<PlaceResult[]>
     },
     body: JSON.stringify({
       textQuery: query,
-      includedType: "church",
-      maxResultCount: 20,
+      pageSize: 20,
     }),
   });
 
