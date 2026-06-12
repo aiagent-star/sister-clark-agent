@@ -62,15 +62,19 @@ export async function deleteChurch(id: string): Promise<void> {
 export interface OutreachRecord {
   id?: string;
   church_name: string;
-  email_address: string;
-  subject: string;
-  date_sent?: string;
+  pastor?: string;
+  email?: string;
+  city?: string;
+  state?: string;
+  email_subject?: string;
+  email_body?: string;
   status: "sent" | "failed" | "skipped";
-  resend_id?: string;
+  sent_at?: string;
+  created_at?: string;
 }
 
 export async function insertOutreachRecord(
-  record: Omit<OutreachRecord, "id" | "date_sent">
+  record: Omit<OutreachRecord, "id" | "sent_at" | "created_at">
 ): Promise<void> {
   const { error } = await supabase.from("outreach_history").insert(record);
   if (error) throw error;
@@ -80,7 +84,7 @@ export async function getOutreachHistory(): Promise<OutreachRecord[]> {
   const { data, error } = await supabase
     .from("outreach_history")
     .select("*")
-    .order("date_sent", { ascending: false });
+    .order("created_at", { ascending: false });
 
   if (error) throw error;
   return data ?? [];

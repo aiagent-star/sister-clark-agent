@@ -126,8 +126,7 @@ outreachRouter.post("/send", async (c) => {
         skipped.push(item);
         await insertOutreachRecord({
           church_name: item.church.name,
-          email_address: "",
-          subject: item.subject,
+          email_subject: item.subject,
           status: "skipped",
         }).catch(() => {});
         return;
@@ -143,10 +142,10 @@ outreachRouter.post("/send", async (c) => {
 
         await insertOutreachRecord({
           church_name: item.church.name,
-          email_address: toEmail,
-          subject: item.subject,
+          email: toEmail,
+          email_subject: item.subject,
+          email_body: item.body,
           status: "sent",
-          resend_id: result.id,
         });
 
         sent.push(item);
@@ -155,8 +154,8 @@ outreachRouter.post("/send", async (c) => {
 
         await insertOutreachRecord({
           church_name: item.church.name,
-          email_address: toEmail,
-          subject: item.subject,
+          email: toEmail,
+          email_subject: item.subject,
           status: "failed",
         }).catch(() => {});
 
