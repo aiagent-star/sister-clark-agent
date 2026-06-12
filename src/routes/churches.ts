@@ -10,23 +10,42 @@ import {
 
 export const churchesRouter = new Hono();
 
+async function parseBody(c: { req: { json: <T>() => Promise<T>; header: (k: string) => string | undefined } }): Promise<Record<string, unknown>> {
+  try {
+    return await c.req.json<Record<string, unknown>>();
+  } catch {
+    return {};
+  }
+}
+
+function coalesce(body: Record<string, unknown>, ...keys: string[]): unknown {
+  for (const k of keys) if (body[k] !== undefined) return body[k];
+  return undefined;
+}
+
 function parseSearchParams(body: Record<string, unknown>): ChurchSearchParams {
+  const minRaw = coalesce(body, "congregationMin", "minCongregation", "min_congregation");
+  const maxRaw = coalesce(body, "congregationMax", "maxCongregation", "max_congregation");
+  const tierRaw = coalesce(body, "targetTier", "target_tier");
+  const stageRaw = coalesce(body, "growthStage", "growth_stage");
+  const denomRaw = coalesce(body, "denomination");
+
   return {
     city: String(body.city ?? "").trim(),
     state: String(body.state ?? "").trim(),
-    congregationMin: body.congregationMin !== undefined ? Number(body.congregationMin) : undefined,
-    congregationMax: body.congregationMax !== undefined ? Number(body.congregationMax) : undefined,
-    targetTier: body.targetTier !== undefined ? (Number(body.targetTier) as 1 | 2 | 3) : undefined,
+    congregationMin: minRaw !== undefined ? Number(minRaw) : undefined,
+    congregationMax: maxRaw !== undefined ? Number(maxRaw) : undefined,
+    targetTier: tierRaw !== undefined ? (Number(tierRaw) as 1 | 2 | 3) : undefined,
     hasWebsite: body.hasWebsite !== undefined ? Boolean(body.hasWebsite) : undefined,
     hasStaff: body.hasStaff !== undefined ? Boolean(body.hasStaff) : undefined,
-    denomination: body.denomination !== undefined ? String(body.denomination) : undefined,
-    growthStage: body.growthStage as ChurchSearchParams["growthStage"] | undefined,
+    denomination: denomRaw !== undefined ? String(denomRaw) : undefined,
+    growthStage: stageRaw as ChurchSearchParams["growthStage"] | undefined,
   };
 }
 
 // Find churches via AI (no storage)
 churchesRouter.post("/find", async (c) => {
-  const body = await c.req.json<Record<string, unknown>>();
+  const body = await parseBody(c);
 
   if (!body.city || !body.state) {
     return c.json({ error: "city and state are required" }, 400);
@@ -39,10 +58,10 @@ churchesRouter.post("/find", async (c) => {
 
 // Find churches via AI and save to DB
 churchesRouter.post("/find-and-save", async (c) => {
-  const body = await c.req.json<Record<string, unknown>>();
+  const body = await parseBody(c);
 
   if (!body.city || !body.state) {
-    return c.json({ error: "city and state are required" }, 400);
+    return c.json({ error: "city and state are required — send JSON with Content-Type: application/json" }, 400);
   }
 
   const params = parseSearchParams(body);
