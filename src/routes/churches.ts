@@ -68,7 +68,17 @@ churchesRouter.post("/find-and-save", async (c) => {
   const { city, state, churches } = await findChurches(params);
 
   const saved = await saveChurches(
-    churches.map((ch: Church) => ({ ...ch, city, state }))
+    churches.map((ch: Church) => ({
+      name: ch.name,
+      denomination: ch.denomination,
+      address: ch.address,
+      phone: ch.phone,
+      website: ch.website,
+      email: ch.email,
+      city,
+      state,
+      notes: ch.fitReason ?? ch.notes,
+    }))
   );
 
   return c.json({ city, state, churches: saved });
