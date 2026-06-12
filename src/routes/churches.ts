@@ -6,7 +6,9 @@ import {
   getChurches,
   updateChurchEmail,
   deleteChurch,
+  supabase,
 } from "../lib/supabase.js";
+import { extractChurchEmail } from "../agents/emailExtractor.js";
 
 export const churchesRouter = new Hono();
 
@@ -110,4 +112,57 @@ churchesRouter.delete("/:id", async (c) => {
   const id = c.req.param("id");
   await deleteChurch(id);
   return c.json({ success: true });
+});
+
+// Extract and save email for a single church
+churchesRouter.post("/:id/extract-email", async (c) => {
+  const id = c.req.param("id");
+
+  const { data: church, error } = await supabase
+    .from("churches")
+    .select("id, name, website, email")
+    .eq("id", id)
+    .single();
+
+  if (error || !church) {
+    return c.json({ error: "Church not found" }, 404);
+  }
+
+  const email = await extractChurchEmail(church.name, church.website);
+
+  if (email) {
+    await updateChurchEmail(id, email);
+  }
+
+  return c.json({ id, name: church.name, email: email ?? null, updated: !!email });
+});
+
+// Extract emails for all saved churches that don't have one yet
+churchesRouter.post("/extract-all-emails", async (c) => {
+  const { data: churches, error } = await supabase
+    .from("churches")
+    .select("id, name, website, email")
+    .or("email.is.null,email.eq.");
+
+  if (error) throw error;
+
+  if (!churches || churches.length === 0) {
+    return c.json({ message: "No churches missing an email", updated: 0, results: [] });
+  }
+
+  const results = await Promise.allSettled(
+    churches.map(async (ch) => {
+      const email = await extractChurchEmail(ch.name, ch.website);
+      if (email) await updateChurchEmail(ch.id, email);
+      return { id: ch.id, name: ch.name, email: email ?? null, updated: !!email };
+    })
+  );
+
+  const settled = results.map((r) =>
+    r.status === "fulfilled" ? r.value : { error: r.reason?.message }
+  );
+
+  const updatedCount = settled.filter((r) => "updated" in r && r.updated).length;
+
+  return c.json({ updated: updatedCount, total: churches.length, results: settled });
 });
