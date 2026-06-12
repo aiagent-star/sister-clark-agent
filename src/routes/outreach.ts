@@ -28,7 +28,7 @@ outreachRouter.post("/emails", async (c) => {
     );
   }
 
-  const { churches } = await findChurches(city.trim(), state.trim());
+  const { churches } = await findChurches({ city: city.trim(), state: state.trim() });
   const emails = await generateOutreachEmails(
     churches,
     senderName,
