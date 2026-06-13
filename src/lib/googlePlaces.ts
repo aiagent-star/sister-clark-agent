@@ -68,17 +68,22 @@ async function textSearch(
   }));
 }
 
+const MAX_RADIUS_METERS = 50 * 1609; // 50 miles
+
 export async function searchChurches(
   city: string,
   state: string,
   denomination?: string,
-  zipCode?: string
+  zipCode?: string,
+  radiusMeters?: number
 ): Promise<PlaceResult[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_PLACES_API_KEY is not set");
 
   const location = zipCode ? `${zipCode} ${city} ${state}` : `${city} ${state}`;
-  const radius = zipCode ? 5000 : undefined;
+  const radius = zipCode
+    ? Math.min(radiusMeters ?? 5000, MAX_RADIUS_METERS)
+    : undefined;
 
   const queries = denomination
     ? [`${denomination} churches in ${location}`]

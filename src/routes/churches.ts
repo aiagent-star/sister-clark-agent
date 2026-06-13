@@ -36,6 +36,7 @@ function parseSearchParams(body: Record<string, unknown>): ChurchSearchParams {
     city: String(body.city ?? "").trim(),
     state: String(body.state ?? "").trim(),
     zipCode: body.zipCode !== undefined ? String(body.zipCode).trim() : undefined,
+    radiusMiles: body.radiusMiles !== undefined ? Number(body.radiusMiles) : undefined,
     congregationMin: minRaw !== undefined ? Number(minRaw) : undefined,
     congregationMax: maxRaw !== undefined ? Number(maxRaw) : undefined,
     targetTier: tierRaw !== undefined ? (Number(tierRaw) as 1 | 2 | 3) : undefined,
