@@ -131,13 +131,13 @@ churchesRouter.post("/:id/extract-email", async (c) => {
     return c.json({ error: "Church not found" }, 404);
   }
 
-  const email = await extractChurchEmail(church.name, church.website);
+  const { email, log } = await extractChurchEmail(church.name, church.website);
 
   if (email) {
     await updateChurchEmail(id, email);
   }
 
-  return c.json({ id, name: church.name, email: email ?? null, updated: !!email });
+  return c.json({ id, name: church.name, email: email ?? null, updated: !!email, log });
 });
 
 // Extract emails for all saved churches that don't have one yet
@@ -155,9 +155,17 @@ churchesRouter.post("/extract-all-emails", async (c) => {
 
   const results = await Promise.allSettled(
     churches.map(async (ch) => {
-      const email = await extractChurchEmail(ch.name, ch.website);
+      const { email, log } = await extractChurchEmail(ch.name, ch.website);
       if (email) await updateChurchEmail(ch.id, email);
-      return { id: ch.id, name: ch.name, email: email ?? null, updated: !!email };
+      return {
+        id: ch.id,
+        name: ch.name,
+        website: ch.website,
+        email: email ?? null,
+        updated: !!email,
+        pages_checked: log.length,
+        errors: log.filter((p) => p.error).map((p) => ({ url: p.url, error: p.error })),
+      };
     })
   );
 
@@ -166,6 +174,7 @@ churchesRouter.post("/extract-all-emails", async (c) => {
   );
 
   const updatedCount = settled.filter((r) => "updated" in r && r.updated).length;
+  const errorCount = settled.filter((r) => "errors" in r && (r as { errors: unknown[] }).errors.length > 0).length;
 
-  return c.json({ updated: updatedCount, total: churches.length, results: settled });
+  return c.json({ updated: updatedCount, total: churches.length, with_errors: errorCount, results: settled });
 });
