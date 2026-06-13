@@ -77,7 +77,12 @@ export interface OutreachRecord {
 export async function insertOutreachRecord(
   record: Omit<OutreachRecord, "id" | "sent_at" | "created_at">
 ): Promise<void> {
-  const { error } = await supabase.from("outreach_history").insert(record);
+  console.log("[outreach_history] inserting:", JSON.stringify(record));
+  const { data, error } = await supabase
+    .from("outreach_history")
+    .insert(record)
+    .select();
+  console.log("[outreach_history] result — data:", JSON.stringify(data), "error:", JSON.stringify(error));
   if (error) throw error;
 }
 

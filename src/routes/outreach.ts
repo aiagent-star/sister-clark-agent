@@ -171,6 +171,7 @@ outreachRouter.post("/send", async (c) => {
           text: item.body,
         });
 
+        console.log("[outreach/send] email sent via Resend, now logging to outreach_history for:", item.church.name);
         await insertOutreachRecord({
           church_name: item.church.name,
           email: toEmail,
@@ -178,6 +179,7 @@ outreachRouter.post("/send", async (c) => {
           email_body: item.body,
           status: "sent",
         });
+        console.log("[outreach/send] outreach_history insert complete for:", item.church.name);
 
         // Resolve church_id (may already be on the object or needs a lookup)
         let churchId: string | null = (item.church.id as string) ?? null;
