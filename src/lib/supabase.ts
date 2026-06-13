@@ -15,6 +15,7 @@ export interface ChurchRecord {
   email?: string;
   city?: string;
   state?: string;
+  zip_code?: string;
   notes?: string;
   created_at?: string;
   updated_at?: string;

@@ -35,6 +35,7 @@ function parseSearchParams(body: Record<string, unknown>): ChurchSearchParams {
   return {
     city: String(body.city ?? "").trim(),
     state: String(body.state ?? "").trim(),
+    zipCode: body.zipCode !== undefined ? String(body.zipCode).trim() : undefined,
     congregationMin: minRaw !== undefined ? Number(minRaw) : undefined,
     congregationMax: maxRaw !== undefined ? Number(maxRaw) : undefined,
     targetTier: tierRaw !== undefined ? (Number(tierRaw) as 1 | 2 | 3) : undefined,
@@ -79,6 +80,7 @@ churchesRouter.post("/find-and-save", async (c) => {
       email: ch.email,
       city,
       state,
+      zip_code: params.zipCode,
       notes: ch.fitReason ?? ch.notes,
     }))
   );

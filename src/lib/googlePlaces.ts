@@ -11,7 +11,25 @@ export interface PlaceResult {
 const PLACES_V1 = "https://places.googleapis.com/v1/places:searchText";
 const FIELD_MASK = "places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.websiteUri,places.rating,places.userRatingCount";
 
-async function textSearch(query: string, apiKey: string): Promise<PlaceResult[]> {
+async function textSearch(
+  query: string,
+  apiKey: string,
+  radiusMeters?: number
+): Promise<PlaceResult[]> {
+  const body: Record<string, unknown> = {
+    textQuery: query,
+    pageSize: 20,
+  };
+
+  if (radiusMeters !== undefined) {
+    body.locationBias = {
+      circle: {
+        // radius only — no center coords needed when zip is in the query text
+        radius: radiusMeters,
+      },
+    };
+  }
+
   const res = await fetch(PLACES_V1, {
     method: "POST",
     headers: {
@@ -19,10 +37,7 @@ async function textSearch(query: string, apiKey: string): Promise<PlaceResult[]>
       "X-Goog-Api-Key": apiKey,
       "X-Goog-FieldMask": FIELD_MASK,
     },
-    body: JSON.stringify({
-      textQuery: query,
-      pageSize: 20,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok) {
@@ -56,21 +71,27 @@ async function textSearch(query: string, apiKey: string): Promise<PlaceResult[]>
 export async function searchChurches(
   city: string,
   state: string,
-  denomination?: string
+  denomination?: string,
+  zipCode?: string
 ): Promise<PlaceResult[]> {
   const apiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_PLACES_API_KEY is not set");
 
+  const location = zipCode ? `${zipCode} ${city} ${state}` : `${city} ${state}`;
+  const radius = zipCode ? 5000 : undefined;
+
   const queries = denomination
-    ? [`${denomination} churches in ${city} ${state}`]
+    ? [`${denomination} churches in ${location}`]
     : [
-        `churches in ${city} ${state}`,
-        `Baptist churches in ${city} ${state}`,
-        `Pentecostal churches in ${city} ${state}`,
-        `Non-denominational churches in ${city} ${state}`,
+        `churches in ${location}`,
+        `Baptist churches in ${location}`,
+        `Pentecostal churches in ${location}`,
+        `Non-denominational churches in ${location}`,
       ];
 
-  const resultSets = await Promise.all(queries.map((q) => textSearch(q, apiKey)));
+  const resultSets = await Promise.all(
+    queries.map((q) => textSearch(q, apiKey, radius))
+  );
 
   // Deduplicate by placeId
   const seen = new Set<string>();

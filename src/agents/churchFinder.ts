@@ -29,6 +29,7 @@ export interface Church {
 export interface ChurchSearchParams {
   city: string;
   state: string;
+  zipCode?: string;
   congregationMin?: number;
   congregationMax?: number;
   targetTier?: 1 | 2 | 3;
@@ -118,7 +119,7 @@ export async function findChurches(
   params: ChurchSearchParams
 ): Promise<ChurchFinderResult> {
   // Step 1: Get real church data from Google Places
-  const places = await searchChurches(params.city, params.state, params.denomination);
+  const places = await searchChurches(params.city, params.state, params.denomination, params.zipCode);
 
   if (places.length === 0) {
     return { city: params.city, state: params.state, churches: [] };
