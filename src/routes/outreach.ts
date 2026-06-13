@@ -111,6 +111,22 @@ outreachRouter.post("/send", async (c) => {
     );
   }
 
+  // Build sets of already-contacted emails and church_ids with active sequences
+  const churchEmails = churches.map((ch) => ch.email).filter(Boolean) as string[];
+  const churchIds = churches.map((ch) => ch.id).filter(Boolean) as string[];
+
+  const [{ data: sentHistory }, { data: activeSequences }] = await Promise.all([
+    churchEmails.length
+      ? supabase.from("outreach_history").select("email").eq("status", "sent").in("email", churchEmails)
+      : Promise.resolve({ data: [] }),
+    churchIds.length
+      ? supabase.from("follow_up_sequences").select("church_id").eq("status", "active").in("church_id", churchIds)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const alreadyEmailedSet = new Set((sentHistory ?? []).map((r: { email: string }) => r.email?.toLowerCase()));
+  const activeSequenceSet = new Set((activeSequences ?? []).map((r: { church_id: string }) => r.church_id));
+
   const emails = await generateOutreachEmails(
     churches,
     senderName,
@@ -119,6 +135,7 @@ outreachRouter.post("/send", async (c) => {
 
   const sent: typeof emails = [];
   const skipped: typeof emails = [];
+  const skippedDuplicates: Array<{ name: string; email: string; reason: string }> = [];
   const failed: Array<{ email: (typeof emails)[0]; error: string }> = [];
 
   await Promise.all(
@@ -132,6 +149,17 @@ outreachRouter.post("/send", async (c) => {
           email_subject: item.subject,
           status: "skipped",
         }).catch(() => {});
+        return;
+      }
+
+      // Duplicate / active-sequence check
+      const churchId = item.church.id as string | undefined;
+      if (alreadyEmailedSet.has(toEmail.toLowerCase())) {
+        skippedDuplicates.push({ name: item.church.name, email: toEmail, reason: "already emailed" });
+        return;
+      }
+      if (churchId && activeSequenceSet.has(churchId)) {
+        skippedDuplicates.push({ name: item.church.name, email: toEmail, reason: "active follow-up sequence exists" });
         return;
       }
 
@@ -187,10 +215,12 @@ outreachRouter.post("/send", async (c) => {
     summary: {
       sent: sent.length,
       skipped: skipped.length,
+      skipped_duplicates: skippedDuplicates.length,
       failed: failed.length,
     },
     sent,
     skipped,
+    skipped_duplicates: skippedDuplicates,
     failed,
   });
 });
