@@ -9,6 +9,8 @@ const client = new Anthropic({
 export interface Church {
   id?: string;
   name: string;
+  city?: string;
+  state?: string;
   denomination: string;
   address?: string;
   phone?: string;

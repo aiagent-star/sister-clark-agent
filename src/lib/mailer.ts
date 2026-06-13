@@ -27,7 +27,11 @@ export async function sendEmail(
   });
 
   if (error || !data) {
-    throw new Error(error?.message ?? "Failed to send email");
+    const detail = error
+      ? `Resend error — name: ${error.name}, message: ${error.message}`
+      : "Resend returned no data and no error";
+    console.error("[mailer] sendEmail failed:", detail, "| to:", options.to, "| from:", options.from);
+    throw new Error(detail);
   }
 
   return { id: data.id };

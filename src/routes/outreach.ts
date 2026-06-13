@@ -170,12 +170,7 @@ outreachRouter.post("/send", async (c) => {
 
       if (!toEmail) {
         skipped.push(item);
-        await insertOutreachRecord({
-          church_name: item.church.name,
-          email_subject: item.subject,
-          status: "skipped",
-        }).catch(() => {});
-        continue;
+        continue; // no email address — don't log to outreach_history
       }
 
       try {
@@ -185,6 +180,8 @@ outreachRouter.post("/send", async (c) => {
         await insertOutreachRecord({
           church_name: item.church.name,
           email: toEmail,
+          city: item.church.city,
+          state: item.church.state,
           email_subject: item.subject,
           email_body: item.body,
           status: "sent",
@@ -210,9 +207,12 @@ outreachRouter.post("/send", async (c) => {
         sent.push(item);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        console.error("[outreach/send] failed for", item.church.name, "—", message);
         await insertOutreachRecord({
           church_name: item.church.name,
           email: toEmail,
+          city: item.church.city,
+          state: item.church.state,
           email_subject: item.subject,
           status: "failed",
         }).catch(() => {});
