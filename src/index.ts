@@ -3,6 +3,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { churchesRouter } from "./routes/churches.js";
 import { outreachRouter } from "./routes/outreach.js";
+import { pipelineRouter } from "./routes/pipeline.js";
 
 const app = new Hono();
 
@@ -15,6 +16,7 @@ app.get("/health", (c) => c.json({ status: "ok", agent: "Sister Clark" }));
 
 app.route("/churches", churchesRouter);
 app.route("/outreach", outreachRouter);
+app.route("/pipeline", pipelineRouter);
 
 const port = Number(process.env.PORT) || 3000;
 

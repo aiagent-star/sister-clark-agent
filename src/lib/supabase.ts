@@ -89,3 +89,111 @@ export async function getOutreachHistory(): Promise<OutreachRecord[]> {
   if (error) throw error;
   return data ?? [];
 }
+
+// ── Pipeline ──────────────────────────────────────────────────────────────────
+
+export type PipelineStage =
+  | "identified"
+  | "emailed"
+  | "opened"
+  | "responded"
+  | "demo_scheduled"
+  | "demo_done"
+  | "proposal_sent"
+  | "won"
+  | "lost";
+
+export interface PipelineRecord {
+  id?: string;
+  church_id: string;
+  stage: PipelineStage;
+  tier_interest?: number;
+  notes?: string;
+  expected_close_date?: string;
+  monthly_revenue?: number;
+  lost_reason?: string;
+  created_at?: string;
+  updated_at?: string;
+  // joined church fields
+  church?: ChurchRecord;
+}
+
+export async function getPipeline(): Promise<Record<PipelineStage, PipelineRecord[]>> {
+  const { data, error } = await supabase
+    .from("pipeline")
+    .select("*, church:churches(*)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const stages: PipelineStage[] = [
+    "identified", "emailed", "opened", "responded",
+    "demo_scheduled", "demo_done", "proposal_sent", "won", "lost",
+  ];
+  const grouped = Object.fromEntries(stages.map((s) => [s, []])) as unknown as Record<PipelineStage, PipelineRecord[]>;
+  for (const row of data ?? []) {
+    grouped[row.stage as PipelineStage]?.push(row);
+  }
+  return grouped;
+}
+
+export async function addToPipeline(
+  church_id: string,
+  stage: PipelineStage = "identified"
+): Promise<PipelineRecord> {
+  const { data, error } = await supabase
+    .from("pipeline")
+    .upsert({ church_id, stage }, { onConflict: "church_id" })
+    .select("*, church:churches(*)")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updatePipelineRecord(
+  id: string,
+  updates: Partial<Pick<PipelineRecord, "stage" | "notes" | "tier_interest" | "expected_close_date" | "monthly_revenue" | "lost_reason">>
+): Promise<PipelineRecord> {
+  const { data, error } = await supabase
+    .from("pipeline")
+    .update(updates)
+    .eq("id", id)
+    .select("*, church:churches(*)")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deletePipelineRecord(id: string): Promise<void> {
+  const { error } = await supabase.from("pipeline").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function getPipelineStats() {
+  const { data, error } = await supabase
+    .from("pipeline")
+    .select("stage, monthly_revenue, tier_interest");
+  if (error) throw error;
+
+  const rows = data ?? [];
+  const stageCounts: Record<string, number> = {};
+  let totalMrr = 0;
+  let totalPipelineValue = 0;
+
+  for (const row of rows) {
+    stageCounts[row.stage] = (stageCounts[row.stage] ?? 0) + 1;
+    if (row.stage === "won" && row.monthly_revenue) {
+      totalMrr += row.monthly_revenue;
+    }
+    if (row.stage !== "lost" && row.monthly_revenue) {
+      totalPipelineValue += row.monthly_revenue;
+    }
+  }
+
+  return {
+    total: rows.length,
+    by_stage: stageCounts,
+    total_mrr: totalMrr,
+    total_pipeline_value: totalPipelineValue,
+  };
+}

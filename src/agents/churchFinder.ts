@@ -7,6 +7,7 @@ const client = new Anthropic({
 });
 
 export interface Church {
+  id?: string;
   name: string;
   denomination: string;
   address?: string;

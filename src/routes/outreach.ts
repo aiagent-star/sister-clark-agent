@@ -7,6 +7,8 @@ import {
   insertOutreachRecord,
   getOutreachHistory,
   getChurches,
+  addToPipeline,
+  supabase,
 } from "../lib/supabase.js";
 
 export const outreachRouter = new Hono();
@@ -147,6 +149,21 @@ outreachRouter.post("/send", async (c) => {
           email_body: item.body,
           status: "sent",
         });
+
+        // Auto-add to pipeline at "emailed" stage (upsert — won't downgrade existing stage)
+        if (item.church.id) {
+          await addToPipeline(item.church.id as string, "emailed").catch(() => {});
+        } else {
+          // Look up church_id by name if not on the object
+          const { data } = await supabase
+            .from("churches")
+            .select("id")
+            .eq("name", item.church.name)
+            .maybeSingle();
+          if (data?.id) {
+            await addToPipeline(data.id, "emailed").catch(() => {});
+          }
+        }
 
         sent.push(item);
       } catch (err) {
