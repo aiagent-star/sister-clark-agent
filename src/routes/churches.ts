@@ -140,21 +140,34 @@ churchesRouter.post("/:id/extract-email", async (c) => {
   return c.json({ id, name: church.name, email: email ?? null, updated: !!email, log });
 });
 
-// Extract emails for all saved churches that don't have one yet
+// GET /churches/extract-progress — how many churches have/lack emails
+churchesRouter.get("/extract-progress", async (c) => {
+  const [{ count: total }, { count: remaining }] = await Promise.all([
+    supabase.from("churches").select("*", { count: "exact", head: true }),
+    supabase.from("churches").select("*", { count: "exact", head: true }).or("email.is.null,email.eq."),
+  ]);
+  const processed = (total ?? 0) - (remaining ?? 0);
+  return c.json({ total: total ?? 0, processed, remaining: remaining ?? 0, done: (remaining ?? 0) === 0 });
+});
+
+// Extract emails one batch of 10 at a time — call repeatedly until remaining reaches 0
 churchesRouter.post("/extract-all-emails", async (c) => {
-  const { data: churches, error } = await supabase
+  const BATCH_SIZE = 10;
+
+  const { data: batch, error } = await supabase
     .from("churches")
     .select("id, name, website, email")
-    .or("email.is.null,email.eq.");
+    .or("email.is.null,email.eq.")
+    .limit(BATCH_SIZE);
 
   if (error) throw error;
 
-  if (!churches || churches.length === 0) {
-    return c.json({ message: "No churches missing an email", updated: 0, results: [] });
+  if (!batch || batch.length === 0) {
+    return c.json({ message: "All churches already have emails", updated: 0, processed: 0, remaining: 0, results: [] });
   }
 
   const results = await Promise.allSettled(
-    churches.map(async (ch) => {
+    batch.map(async (ch) => {
       const { email, log } = await extractChurchEmail(ch.name, ch.website);
       if (email) await updateChurchEmail(ch.id, email);
       return {
@@ -174,7 +187,18 @@ churchesRouter.post("/extract-all-emails", async (c) => {
   );
 
   const updatedCount = settled.filter((r) => "updated" in r && r.updated).length;
-  const errorCount = settled.filter((r) => "errors" in r && (r as { errors: unknown[] }).errors.length > 0).length;
 
-  return c.json({ updated: updatedCount, total: churches.length, with_errors: errorCount, results: settled });
+  // Get fresh remaining count after updates
+  const { count: remaining } = await supabase
+    .from("churches")
+    .select("*", { count: "exact", head: true })
+    .or("email.is.null,email.eq.");
+
+  return c.json({
+    updated: updatedCount,
+    processed: batch.length,
+    remaining: remaining ?? 0,
+    done: (remaining ?? 0) === 0,
+    results: settled,
+  });
 });
