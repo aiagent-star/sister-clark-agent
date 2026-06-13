@@ -8,6 +8,7 @@ import {
   getOutreachHistory,
   getChurches,
   addToPipeline,
+  createFollowUpSequence,
   supabase,
 } from "../lib/supabase.js";
 
@@ -150,19 +151,20 @@ outreachRouter.post("/send", async (c) => {
           status: "sent",
         });
 
-        // Auto-add to pipeline at "emailed" stage (upsert — won't downgrade existing stage)
-        if (item.church.id) {
-          await addToPipeline(item.church.id as string, "emailed").catch(() => {});
-        } else {
-          // Look up church_id by name if not on the object
-          const { data } = await supabase
+        // Resolve church_id (may already be on the object or needs a lookup)
+        let churchId: string | null = (item.church.id as string) ?? null;
+        if (!churchId) {
+          const { data: found } = await supabase
             .from("churches")
             .select("id")
             .eq("name", item.church.name)
             .maybeSingle();
-          if (data?.id) {
-            await addToPipeline(data.id, "emailed").catch(() => {});
-          }
+          churchId = found?.id ?? null;
+        }
+
+        if (churchId) {
+          await addToPipeline(churchId, "emailed").catch(() => {});
+          await createFollowUpSequence(churchId, toEmail).catch(() => {});
         }
 
         sent.push(item);

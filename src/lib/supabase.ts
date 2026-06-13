@@ -91,6 +91,29 @@ export async function getOutreachHistory(): Promise<OutreachRecord[]> {
   return data ?? [];
 }
 
+// ── Follow-up sequences ───────────────────────────────────────────────────────
+
+export async function createFollowUpSequence(
+  churchId: string,
+  email: string
+): Promise<void> {
+  const nextFollowUpAt = new Date();
+  nextFollowUpAt.setDate(nextFollowUpAt.getDate() + 3);
+
+  const { error } = await supabase.from("follow_up_sequences").upsert(
+    {
+      church_id: churchId,
+      email,
+      sequence_number: 0,
+      status: "active",
+      initial_email_sent_at: new Date().toISOString(),
+      next_follow_up_at: nextFollowUpAt.toISOString(),
+    },
+    { onConflict: "church_id" }
+  );
+  if (error) throw error;
+}
+
 // ── Pipeline ──────────────────────────────────────────────────────────────────
 
 export type PipelineStage =
