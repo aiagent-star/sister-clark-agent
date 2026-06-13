@@ -67,14 +67,40 @@ Return ONLY valid JSON with no prose:
   return { church, subject, body };
 }
 
+const RATE_LIMIT_DELAY_MS = 1500;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export class RateLimitError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitError";
+  }
+}
+
 export async function generateOutreachEmails(
   churches: Church[],
   senderName: string,
   senderOrganization: string
 ): Promise<OutreachEmail[]> {
-  return Promise.all(
-    churches.map((church) =>
-      generateOutreachEmail(church, senderName, senderOrganization)
-    )
-  );
+  const results: OutreachEmail[] = [];
+
+  for (let i = 0; i < churches.length; i++) {
+    if (i > 0) await sleep(RATE_LIMIT_DELAY_MS);
+
+    try {
+      const email = await generateOutreachEmail(churches[i], senderName, senderOrganization);
+      results.push(email);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("rate_limit") || message.includes("429") || message.includes("Rate limit")) {
+        throw new RateLimitError(`Rate limit reached after generating ${results.length} email(s)`);
+      }
+      throw err;
+    }
+  }
+
+  return results;
 }

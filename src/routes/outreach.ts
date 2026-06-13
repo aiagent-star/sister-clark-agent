@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { findChurches } from "../agents/churchFinder.js";
-import { generateOutreachEmails } from "../agents/emailGenerator.js";
+import { generateOutreachEmails, RateLimitError } from "../agents/emailGenerator.js";
 import type { Church } from "../agents/churchFinder.js";
 import { sendEmail } from "../lib/mailer.js";
 import {
@@ -77,10 +77,12 @@ outreachRouter.post("/send", async (c) => {
     senderName: string;
     senderOrganization: string;
     fromEmail?: string;
+    maxPerRun?: number;
   }>();
 
   const { senderName, senderOrganization } = body;
   const fromEmail = body.fromEmail ?? process.env.FROM_EMAIL;
+  const maxPerRun = Math.min(body.maxPerRun ?? 10, 10);
 
   if (!senderName || !senderOrganization) {
     return c.json({ error: "senderName and senderOrganization are required" }, 400);
@@ -111,6 +113,9 @@ outreachRouter.post("/send", async (c) => {
     );
   }
 
+  // Cap to maxPerRun
+  churches = churches.slice(0, maxPerRun);
+
   // Build sets of already-contacted emails and church_ids with active sequences
   const churchEmails = churches.map((ch) => ch.email).filter(Boolean) as string[];
   const churchIds = churches.map((ch) => ch.id).filter(Boolean) as string[];
@@ -127,20 +132,41 @@ outreachRouter.post("/send", async (c) => {
   const alreadyEmailedSet = new Set((sentHistory ?? []).map((r: { email: string }) => r.email?.toLowerCase()));
   const activeSequenceSet = new Set((activeSequences ?? []).map((r: { church_id: string }) => r.church_id));
 
-  const emails = await generateOutreachEmails(
-    churches,
-    senderName,
-    senderOrganization
-  );
+  // Filter out duplicates before generation to avoid wasting Claude calls
+  const skippedDuplicates: Array<{ name: string; email: string; reason: string }> = [];
+  const churchesToProcess = churches.filter((ch) => {
+    if (!ch.email) return true; // let send loop handle no-email skips
+    if (alreadyEmailedSet.has(ch.email.toLowerCase())) {
+      skippedDuplicates.push({ name: ch.name, email: ch.email, reason: "already emailed" });
+      return false;
+    }
+    if (ch.id && activeSequenceSet.has(ch.id)) {
+      skippedDuplicates.push({ name: ch.name, email: ch.email, reason: "active follow-up sequence exists" });
+      return false;
+    }
+    return true;
+  });
+
+  let emails: Awaited<ReturnType<typeof generateOutreachEmails>> = [];
+  let rateLimitMessage: string | undefined;
+
+  try {
+    emails = await generateOutreachEmails(churchesToProcess, senderName, senderOrganization);
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      rateLimitMessage = err.message;
+      // emails will be empty — partial results handled below
+    } else {
+      throw err;
+    }
+  }
 
   const sent: typeof emails = [];
   const skipped: typeof emails = [];
-  const skippedDuplicates: Array<{ name: string; email: string; reason: string }> = [];
   const failed: Array<{ email: (typeof emails)[0]; error: string }> = [];
 
-  await Promise.all(
-    emails.map(async (item) => {
-      const toEmail = item.church.email;
+  for (const item of emails) {
+    const toEmail = item.church.email;
 
       if (!toEmail) {
         skipped.push(item);
@@ -149,27 +175,11 @@ outreachRouter.post("/send", async (c) => {
           email_subject: item.subject,
           status: "skipped",
         }).catch(() => {});
-        return;
-      }
-
-      // Duplicate / active-sequence check
-      const churchId = item.church.id as string | undefined;
-      if (alreadyEmailedSet.has(toEmail.toLowerCase())) {
-        skippedDuplicates.push({ name: item.church.name, email: toEmail, reason: "already emailed" });
-        return;
-      }
-      if (churchId && activeSequenceSet.has(churchId)) {
-        skippedDuplicates.push({ name: item.church.name, email: toEmail, reason: "active follow-up sequence exists" });
-        return;
+        continue;
       }
 
       try {
-        const result = await sendEmail({
-          from: fromEmail,
-          to: toEmail,
-          subject: item.subject,
-          text: item.body,
-        });
+        await sendEmail({ from: fromEmail, to: toEmail, subject: item.subject, text: item.body });
 
         console.log("[outreach/send] email sent via Resend, now logging to outreach_history for:", item.church.name);
         await insertOutreachRecord({
@@ -181,37 +191,34 @@ outreachRouter.post("/send", async (c) => {
         });
         console.log("[outreach/send] outreach_history insert complete for:", item.church.name);
 
-        // Resolve church_id (may already be on the object or needs a lookup)
-        let churchId: string | null = (item.church.id as string) ?? null;
-        if (!churchId) {
+        // Resolve church_id for pipeline + follow-up sequence
+        let resolvedChurchId: string | null = (item.church.id as string) ?? null;
+        if (!resolvedChurchId) {
           const { data: found } = await supabase
             .from("churches")
             .select("id")
             .eq("name", item.church.name)
             .maybeSingle();
-          churchId = found?.id ?? null;
+          resolvedChurchId = found?.id ?? null;
         }
 
-        if (churchId) {
-          await addToPipeline(churchId, "emailed").catch(() => {});
-          await createFollowUpSequence(churchId, toEmail).catch(() => {});
+        if (resolvedChurchId) {
+          await addToPipeline(resolvedChurchId, "emailed").catch(() => {});
+          await createFollowUpSequence(resolvedChurchId, toEmail).catch(() => {});
         }
 
         sent.push(item);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-
         await insertOutreachRecord({
           church_name: item.church.name,
           email: toEmail,
           email_subject: item.subject,
           status: "failed",
         }).catch(() => {});
-
         failed.push({ email: item, error: message });
       }
-    })
-  );
+  }
 
   return c.json({
     summary: {
@@ -219,6 +226,7 @@ outreachRouter.post("/send", async (c) => {
       skipped: skipped.length,
       skipped_duplicates: skippedDuplicates.length,
       failed: failed.length,
+      ...(rateLimitMessage ? { rate_limit_message: `${rateLimitMessage} — run again to continue` } : {}),
     },
     sent,
     skipped,
