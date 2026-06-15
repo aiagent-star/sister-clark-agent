@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import cron from "node-cron";
 import { churchesRouter } from "./routes/churches.js";
 import { outreachRouter } from "./routes/outreach.js";
@@ -9,6 +10,13 @@ import { followUpsRouter } from "./routes/followUps.js";
 import { processFollowUps } from "./agents/followUpAgent.js";
 
 const app = new Hono();
+
+app.use("*", cors({
+  origin: ["https://outreach.sisterclark.com", "https://sisterclark.com"],
+  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type", "Authorization"],
+  maxAge: 86400,
+}));
 
 app.onError((err, c) => {
   console.error(err);
