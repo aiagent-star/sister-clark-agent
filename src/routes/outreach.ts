@@ -249,3 +249,33 @@ outreachRouter.get("/history", async (c) => {
   const history = await getOutreachHistory();
   return c.json({ history });
 });
+
+// Preview a personalized outreach email for a church — no send, no logging
+outreachRouter.post("/preview", async (c) => {
+  const body = await c.req.json<{
+    church_id: string;
+    senderName?: string;
+    senderOrganization?: string;
+  }>();
+
+  if (!body.church_id) {
+    return c.json({ error: "church_id is required" }, 400);
+  }
+
+  const { data: church, error } = await supabase
+    .from("churches")
+    .select("*")
+    .eq("id", body.church_id)
+    .single();
+
+  if (error || !church) {
+    return c.json({ error: "Church not found" }, 404);
+  }
+
+  const senderName = body.senderName ?? "Sister Clark";
+  const senderOrganization = body.senderOrganization ?? "Sister Clark Ministry Tools";
+
+  const [result] = await generateOutreachEmails([church as Church], senderName, senderOrganization);
+
+  return c.json({ subject: result.subject, body: result.body });
+});
