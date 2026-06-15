@@ -4,7 +4,7 @@ import { sendEmail } from "../lib/mailer.js";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const FROM_EMAIL = "outreach@sisterclark.com";
+const FROM_EMAIL = process.env.OUTREACH_FROM_EMAIL ?? "outreach@sisterclark.com";
 
 // Days to wait before the next follow-up after each sequence step
 const NEXT_DELAY_DAYS: Record<number, number> = { 1: 4, 2: 7, 3: 7 };

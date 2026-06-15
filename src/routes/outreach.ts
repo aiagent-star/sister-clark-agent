@@ -82,7 +82,7 @@ outreachRouter.post("/send", async (c) => {
   }>();
 
   const { senderName, senderOrganization } = body;
-  const fromEmail = body.fromEmail ?? process.env.FROM_EMAIL;
+  const fromEmail = body.fromEmail ?? process.env.OUTREACH_FROM_EMAIL ?? "outreach@sisterclark.com";
   const maxPerRun = Math.min(body.maxPerRun ?? 10, 10);
 
   if (!senderName || !senderOrganization) {
@@ -118,7 +118,7 @@ outreachRouter.post("/send", async (c) => {
 
   if (!fromEmail) {
     return c.json(
-      { error: "fromEmail is required (or set FROM_EMAIL env var)" },
+      { error: "fromEmail is required (or set OUTREACH_FROM_EMAIL env var)" },
       400
     );
   }
