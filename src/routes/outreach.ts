@@ -92,7 +92,7 @@ outreachRouter.post("/send", async (c) => {
 
   if (body.city && body.state) {
     // Pull saved churches from Supabase so email addresses are included
-    const saved = await getChurches(body.city.trim(), body.state.trim());
+    const { churches: saved } = await getChurches(body.city.trim(), body.state.trim(), 500, 0);
     if (!saved.length) {
       return c.json(
         { error: `No saved churches found for ${body.city}, ${body.state}. Use POST /churches/find-and-save first, then add emails via PATCH /churches/:id/email.` },

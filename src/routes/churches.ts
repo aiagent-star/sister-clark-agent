@@ -89,12 +89,14 @@ churchesRouter.post("/find-and-save", async (c) => {
   return c.json({ city, state, churches: saved });
 });
 
-// List saved churches (optionally filter by city/state)
+// List saved churches (optionally filter by city/state, with pagination)
 churchesRouter.get("/", async (c) => {
   const city = c.req.query("city");
   const state = c.req.query("state");
-  const churches = await getChurches(city, state);
-  return c.json({ churches });
+  const limit = Math.min(Number(c.req.query("limit") ?? 20), 50);
+  const offset = Math.max(Number(c.req.query("offset") ?? 0), 0);
+  const result = await getChurches(city, state, limit, offset);
+  return c.json(result);
 });
 
 // Update a church's email address

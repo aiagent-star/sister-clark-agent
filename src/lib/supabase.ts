@@ -32,13 +32,25 @@ export async function saveChurches(
   return data ?? [];
 }
 
-export async function getChurches(city?: string, state?: string): Promise<ChurchRecord[]> {
-  let query = supabase.from("churches").select("*").order("name");
+export interface GetChurchesResult {
+  churches: ChurchRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function getChurches(
+  city?: string,
+  state?: string,
+  limit = 20,
+  offset = 0
+): Promise<GetChurchesResult> {
+  let query = supabase.from("churches").select("*", { count: "exact" }).order("name");
   if (city) query = query.ilike("city", city);
   if (state) query = query.ilike("state", state);
-  const { data, error } = await query;
+  const { data, error, count } = await query.range(offset, offset + limit - 1);
   if (error) throw error;
-  return data ?? [];
+  return { churches: data ?? [], total: count ?? 0, limit, offset };
 }
 
 export async function updateChurchEmail(
