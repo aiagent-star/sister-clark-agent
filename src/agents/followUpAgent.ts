@@ -18,35 +18,61 @@ interface SequenceRow {
   church: { name: string; denomination?: string; congregation?: number } | null;
 }
 
+const SIGNATURE = `With warmth and respect,
+James Kirklin II
+Founder, Sister Clark
+404-860-2775
+support@theintellectualstew.com
+sisterclark.com`;
+
+const SIGNATURE_INSTRUCTION = `End every email with EXACTLY this signature — no placeholders, no changes:
+
+${SIGNATURE}`;
+
 async function generateFollowUp(
   churchName: string,
   denomination: string | undefined,
   congregationSize: number | undefined,
   sequenceNumber: number
 ): Promise<{ subject: string; body: string }> {
+  const churchContext = [
+    churchName,
+    denomination ? `(${denomination})` : "",
+    congregationSize ? `~${congregationSize} members` : "",
+  ].filter(Boolean).join(" ");
+
   const prompts: Record<number, string> = {
-    1: `Write a short, casual follow-up email for Sister Clark (a church AI phone receptionist service) to ${churchName}.
-This is follow-up #1 (day 3 after the initial email).
-Tone: friendly, no pressure, 3-4 sentences.
-Subject line should be: "Re: Sister Clark for ${churchName}"
-Just ask if they had a chance to review the previous email. Sign off as Sister Clark's team.
+    1: `Write a short, casual follow-up email FROM James Kirklin II, founder of Sister Clark (an AI voice receptionist for churches), to ${churchContext}.
+This is follow-up #1, sent 3 days after the initial outreach.
+Tone: friendly, personal, zero pressure — 3 to 4 sentences total.
+Subject: "Re: Sister Clark for ${churchName}"
+James just wants to know if they had a chance to look at his previous email. Write in first person as James.
+Do NOT use any placeholder text.
+${SIGNATURE_INSTRUCTION}
 Return JSON: { "subject": "...", "body": "..." }`,
 
-    2: `Write a value-add follow-up email for Sister Clark to ${churchName} (${denomination ?? "church"}, ~${congregationSize ?? "unknown"} members).
-This is follow-up #2 (day 7). Focus on a specific use case: churches using Sister Clark never miss a prayer request or urgent pastoral call.
-Tailor the use case to their denomination and congregation size. 4-5 sentences.
-Sign off as Sister Clark's team.
+    2: `Write a value-add follow-up email FROM James Kirklin II, founder of Sister Clark (an AI voice receptionist for churches), to ${churchContext}.
+This is follow-up #2, sent 7 days after the initial outreach.
+Angle: churches using Sister Clark never miss a prayer request or urgent pastoral call — pick one specific, real scenario relevant to their denomination or size and tell a brief story around it.
+4 to 5 sentences. First person as James. Soft ask for a 15-minute call.
+Do NOT use any placeholder text.
+${SIGNATURE_INSTRUCTION}
 Return JSON: { "subject": "...", "body": "..." }`,
 
-    3: `Write a ROI-focused follow-up email for Sister Clark to ${churchName}.
-This is follow-up #3 (day 14). Focus on the cost of missed calls vs the cost of Sister Clark — frame it as a simple ROI decision, not a features pitch.
-Keep it under 6 sentences. No fluff. Sign off as Sister Clark's team.
+    3: `Write an ROI-focused follow-up email FROM James Kirklin II, founder of Sister Clark (an AI voice receptionist for churches), to ${churchContext}.
+This is follow-up #3, sent 14 days after the initial outreach.
+Angle: the cost of a missed call (a lost member, an unlogged prayer request, a family in crisis reaching voicemail) versus the affordable monthly cost of Sister Clark. Frame it as a simple, pastor-friendly ROI question — not a features pitch.
+Under 6 sentences. First person as James. No fluff.
+Do NOT use any placeholder text.
+${SIGNATURE_INSTRUCTION}
 Return JSON: { "subject": "...", "body": "..." }`,
 
-    4: `Write a final "breakup" follow-up email for Sister Clark to ${churchName}.
-This is follow-up #4 (day 21) — the last one. Keep it short (3 sentences max), respectful, and leave the door open.
-End with something like: "I won't reach out again, but Sister Clark will be here when you're ready."
-Sign off as Sister Clark's team.
+    4: `Write a final "breakup" email FROM James Kirklin II, founder of Sister Clark (an AI voice receptionist for churches), to ${churchContext}.
+This is follow-up #4, sent 21 days after the initial outreach — the last email James will send.
+3 sentences max. Warm, respectful, no guilt. Leave the door open.
+The final sentence should be something like: "I won't reach out again, but Sister Clark will be here whenever your church is ready."
+First person as James. Do NOT use any placeholder text.
+${SIGNATURE_INSTRUCTION}
 Return JSON: { "subject": "...", "body": "..." }`,
   };
 

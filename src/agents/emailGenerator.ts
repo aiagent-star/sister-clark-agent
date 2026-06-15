@@ -11,16 +11,28 @@ export interface OutreachEmail {
   body: string;
 }
 
+const SIGNATURE = `With warmth and respect,
+James Kirklin II
+Founder, Sister Clark
+404-860-2775
+support@theintellectualstew.com
+sisterclark.com`;
+
 export async function generateOutreachEmail(
   church: Church,
-  senderName: string,
-  senderOrganization: string
+  _senderName: string,
+  _senderOrganization: string
 ): Promise<OutreachEmail> {
   const churchDetails = [
     `Name: ${church.name}`,
-    `Denomination: ${church.denomination}`,
-    church.address ? `Address: ${church.address}` : null,
-    church.notes ? `Notes: ${church.notes}` : null,
+    church.denomination ? `Denomination: ${church.denomination}` : null,
+    (church as { city?: string; state?: string }).city
+      ? `City: ${(church as { city?: string }).city}, ${(church as { state?: string }).state ?? ""}`
+      : null,
+    (church as { congregation?: number }).congregation
+      ? `Congregation size: ~${(church as { congregation?: number }).congregation}`
+      : null,
+    church.notes ? `Notes about this church: ${church.notes}` : null,
   ]
     .filter(Boolean)
     .join("\n");
@@ -31,23 +43,30 @@ export async function generateOutreachEmail(
     messages: [
       {
         role: "user",
-        content: `You are a warm, professional outreach coordinator writing on behalf of ${senderName} from ${senderOrganization}.
+        content: `You are writing a cold outreach email FROM James Kirklin II, founder of Sister Clark — an AI voice receptionist SaaS built specifically for churches.
 
-Write a personalized outreach email to the following church. The email should:
-- Open with a warm, specific greeting referencing their church by name
-- Briefly introduce ${senderName} and ${senderOrganization}
-- Express genuine interest in partnership, community collaboration, or fellowship
-- Reference the church's denomination or community focus naturally where it fits
-- Close with a clear, low-pressure call to action (e.g., a brief call or coffee meeting)
-- Keep the tone warm, respectful, and sincere — not salesy
+Sister Clark answers every call 24/7, handles prayer requests, takes messages, routes urgent calls to the pastor, and ensures no member ever reaches voicemail. It is affordable, set up in minutes, and designed for churches of all sizes.
+
+Write a warm, personal outreach email TO the following church. Rules:
+- James is the sender — write in first person as James ("I", "my", "I built")
+- Open with James briefly introducing himself and why he is reaching out to THIS specific church
+- Reference the church's denomination, congregation size, or city naturally to show this is not a mass email
+- Explain Sister Clark in 2-3 sentences — what it does, why it matters for churches
+- Make a soft ask: a 15-minute call or a quick demo, no pressure
+- Keep the tone warm, pastoral, and sincere — never corporate or salesy
+- End with EXACTLY this signature, no changes:
+
+${SIGNATURE}
+
+IMPORTANT: Do NOT use any placeholder text like [Phone Number], [Email], [Website], [Your Name], or similar. The signature above is complete and final.
 
 Church details:
 ${churchDetails}
 
-Return ONLY valid JSON with no prose:
+Return ONLY valid JSON:
 {
   "subject": "Email subject line",
-  "body": "Full email body text"
+  "body": "Full email body text including the signature at the end"
 }`,
       },
     ],
