@@ -74,6 +74,7 @@ outreachRouter.post("/send", async (c) => {
     city?: string;
     state?: string;
     churches?: Church[];
+    churchIds?: string[];
     senderName: string;
     senderOrganization: string;
     fromEmail?: string;
@@ -90,8 +91,17 @@ outreachRouter.post("/send", async (c) => {
 
   let churches: Church[];
 
-  if (body.city && body.state) {
-    // Pull saved churches from Supabase so email addresses are included
+  if (body.churchIds?.length) {
+    const { data, error } = await supabase
+      .from("churches")
+      .select("*")
+      .in("id", body.churchIds);
+    if (error) throw error;
+    if (!data?.length) {
+      return c.json({ error: "No churches found for the provided churchIds" }, 404);
+    }
+    churches = data as Church[];
+  } else if (body.city && body.state) {
     const { churches: saved } = await getChurches(body.city.trim(), body.state.trim(), 500, 0);
     if (!saved.length) {
       return c.json(
@@ -103,7 +113,7 @@ outreachRouter.post("/send", async (c) => {
   } else if (body.churches?.length) {
     churches = body.churches;
   } else {
-    return c.json({ error: "Provide either city+state or a churches array" }, 400);
+    return c.json({ error: "Provide churchIds, city+state, or a churches array" }, 400);
   }
 
   if (!fromEmail) {
