@@ -29,6 +29,14 @@ const SIGNATURE_INSTRUCTION = `End every email with EXACTLY this signature — n
 
 ${SIGNATURE}`;
 
+function followUpTierContext(congregationSize: number | undefined): string {
+  if (!congregationSize) return "";
+  if (congregationSize <= 75) return `Tier context: Economy tier ($97/month, $50 deposit, 100 minutes) — lead with "no church too small," very low commitment.`;
+  if (congregationSize <= 250) return `Tier context: Essential tier ($197/month, $100 deposit, 250 minutes) — affordable for a small, growing church.`;
+  if (congregationSize <= 750) return `Tier context: Enterprise tier ($297/month, $150 deposit, 500 minutes) — built for a congregation this size.`;
+  return `Tier context: Executive tier ($597/month, $250 deposit, 1,000 minutes) — full-coverage for a large congregation.`;
+}
+
 async function generateFollowUp(
   churchName: string,
   denomination: string | undefined,
@@ -41,12 +49,15 @@ async function generateFollowUp(
     congregationSize ? `~${congregationSize} members` : "",
   ].filter(Boolean).join(" ");
 
+  const tierCtx = followUpTierContext(congregationSize);
+
   const prompts: Record<number, string> = {
     1: `Write a short, casual follow-up email FROM James Kirklin II, founder of Sister Clark (an AI voice receptionist for churches), to ${churchContext}.
 This is follow-up #1, sent 3 days after the initial outreach.
 Tone: friendly, personal, zero pressure — 3 to 4 sentences total.
 Subject: "Re: Sister Clark for ${churchName}"
 James just wants to know if they had a chance to look at his previous email. Write in first person as James.
+${tierCtx}
 Do NOT use any placeholder text.
 ${SIGNATURE_INSTRUCTION}
 Return JSON: { "subject": "...", "body": "..." }`,
@@ -55,13 +66,15 @@ Return JSON: { "subject": "...", "body": "..." }`,
 This is follow-up #2, sent 7 days after the initial outreach.
 Angle: churches using Sister Clark never miss a prayer request or urgent pastoral call — pick one specific, real scenario relevant to their denomination or size and tell a brief story around it.
 4 to 5 sentences. First person as James. Soft ask for a 15-minute call.
+${tierCtx}
 Do NOT use any placeholder text.
 ${SIGNATURE_INSTRUCTION}
 Return JSON: { "subject": "...", "body": "..." }`,
 
     3: `Write an ROI-focused follow-up email FROM James Kirklin II, founder of Sister Clark (an AI voice receptionist for churches), to ${churchContext}.
 This is follow-up #3, sent 14 days after the initial outreach.
-Angle: the cost of a missed call (a lost member, an unlogged prayer request, a family in crisis reaching voicemail) versus the affordable monthly cost of Sister Clark. Frame it as a simple, pastor-friendly ROI question — not a features pitch.
+Angle: the cost of a missed call (a lost member, an unlogged prayer request, a family in crisis reaching voicemail) versus the monthly cost of Sister Clark. Frame it as a simple, pastor-friendly ROI question — not a features pitch.
+${tierCtx ? `If you mention pricing, use only: ${tierCtx}` : ""}
 Under 6 sentences. First person as James. No fluff.
 Do NOT use any placeholder text.
 ${SIGNATURE_INSTRUCTION}

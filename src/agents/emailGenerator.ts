@@ -18,6 +18,14 @@ Founder, Sister Clark
 support@theintellectualstew.com
 sisterclark.com`;
 
+function tierGuidance(tier: number | undefined): string {
+  if (tier === 0) return `This church maps to the Economy tier ($97/month, $50 deposit, 100 minutes). Lead with accessibility — "no church is too small," low-commitment entry point, easy setup. Do NOT mention higher-tier pricing.`;
+  if (tier === 1) return `This church maps to the Essential tier ($197/month, $100 deposit, 250 minutes). Emphasize it is built for small, growing churches — affordable, no large IT team needed.`;
+  if (tier === 2) return `This church maps to the Enterprise tier ($297/month, $150 deposit, 500 minutes). Emphasize reliable coverage that scales with a mid-size congregation.`;
+  if (tier === 3) return `This church maps to the Executive tier ($597/month, $250 deposit, 1,000 minutes). Emphasize full-coverage for a large congregation — high call volume, 24/7 reliability, intelligent routing.`;
+  return `Do not mention specific pricing.`;
+}
+
 export async function generateOutreachEmail(
   church: Church,
   _senderName: string,
@@ -45,13 +53,16 @@ export async function generateOutreachEmail(
         role: "user",
         content: `You are writing a cold outreach email FROM James Kirklin II, founder of Sister Clark — an AI voice receptionist SaaS built specifically for churches.
 
-Sister Clark answers every call 24/7, handles prayer requests, takes messages, routes urgent calls to the pastor, and ensures no member ever reaches voicemail. It is affordable, set up in minutes, and designed for churches of all sizes.
+Sister Clark answers every call 24/7, handles prayer requests, takes messages, routes urgent calls to the pastor, and ensures no member ever reaches voicemail. It is set up in minutes and designed for churches of all sizes — from small congregations to large ministries.
+
+Tier context for this church: ${tierGuidance(church.tierRecommendation)}
 
 Write a warm, personal outreach email TO the following church. Rules:
 - James is the sender — write in first person as James ("I", "my", "I built")
 - Open with James briefly introducing himself and why he is reaching out to THIS specific church
 - Reference the church's denomination, congregation size, or city naturally to show this is not a mass email
-- Explain Sister Clark in 2-3 sentences — what it does, why it matters for churches
+- Explain Sister Clark in 2-3 sentences — what it does, why it matters for THIS church's size and context
+- If you mention pricing, use only the tier-specific price and deposit from the tier context above — no other figures
 - Make a soft ask: a 15-minute call or a quick demo, no pressure
 - Keep the tone warm, pastoral, and sincere — never corporate or salesy
 - End with EXACTLY this signature, no changes:

@@ -24,7 +24,7 @@ export interface Church {
   staffCount?: number;
   growthStage?: "established" | "growing" | "new-plant";
   fitScore: number;
-  tierRecommendation: 1 | 2 | 3;
+  tierRecommendation: 0 | 1 | 2 | 3;
   fitReason: string;
 }
 
@@ -35,7 +35,7 @@ export interface ChurchSearchParams {
   radiusMiles?: number;
   congregationMin?: number;
   congregationMax?: number;
-  targetTier?: 1 | 2 | 3;
+  targetTier?: 0 | 1 | 2 | 3;
   hasWebsite?: boolean;
   hasStaff?: boolean;
   denomination?: string;
@@ -62,7 +62,12 @@ function buildScoringPrompt(
   if (params.hasWebsite === true) filters.push("must have a website");
   if (params.hasStaff === true) filters.push("must have estimated paid staff");
   if (params.targetTier !== undefined) {
-    const tierDesc = { 1: "Tier 1 (small, under 200)", 2: "Tier 2 (mid-size, 200–800)", 3: "Tier 3 (large, 800+)" }[params.targetTier];
+    const tierDesc = {
+      0: "Tier 0 Economy (micro, under 75 members)",
+      1: "Tier 1 Essential (small, 75–250 members)",
+      2: "Tier 2 Enterprise (mid-size, 250–750 members)",
+      3: "Tier 3 Executive (large, 750–2000 members)",
+    }[params.targetTier];
     filters.push(`target tier: ${tierDesc}`);
   }
 
@@ -82,17 +87,19 @@ Below is real data from Google Places for churches in ${params.city}, ${params.s
 5. Assign a tierRecommendation (1, 2, or 3)
 6. Write a fitReason (one sentence)${filterText}
 
-Sister Clark's ICP:
-- Best fit (9–10): growing church, clearly understaffed, no obvious IT/admin team, 50–800 members
-- Good fit (7–8): established church modernizing, moderate staff, 200–800 members
-- Neutral (5–6): stable but unclear fit
-- Poor fit (3–4): large, well-staffed church unlikely to need outside help
-- Bad fit (1–2): mega-church with dedicated IT team or house church with no budget
+Sister Clark's ICP and tier definitions:
+- Tier 0 Economy ($97/mo, 100 min): 1–75 members, 0 paid staff — micro churches and house churches with any budget. Score 7–9 if active/growing despite small size. Do NOT score small churches low just for being small.
+- Tier 1 Essential ($197/mo, 250 min): 75–250 members, 0–1 paid staff — small churches modernizing. Score 8–10 if understaffed and growing.
+- Tier 2 Enterprise ($297/mo, 500 min): 250–750 members, 2–5 staff — mid-size (SWEET SPOT). Score 8–10.
+- Tier 3 Executive ($597/mo, 1,000 min): 750–2000 members, 6+ staff — large churches. Score 6–8.
+- Bad fit (1–3): mega-church (2000+) with dedicated IT team, or clearly inactive/closed.
 
-Tier definitions:
-- Tier 1: under 200 congregation, 0–1 paid staff
-- Tier 2: 200–800 congregation, 2–5 staff (SWEET SPOT)
-- Tier 3: 800+ congregation, 6+ staff
+fitScore guidance:
+- 9–10: Strong ICP match — understaffed, active, any size from micro to large
+- 7–8: Good fit — some staff but still needs help, or small but clearly active
+- 5–6: Neutral — unclear fit
+- 3–4: Unlikely to need help (very large, well-staffed)
+- 1–2: Mega-church IT team or closed/inactive
 
 Church data from Google Places:
 ${churchList}
@@ -112,7 +119,7 @@ Return ONLY a JSON array with this structure (no prose):
     "staffCount": 3,
     "growthStage": "growing",
     "fitScore": 8,
-    "tierRecommendation": 2,
+    "tierRecommendation": 1,
     "fitReason": "One sentence explaining fit for Sister Clark."
   }
 ]`;
