@@ -113,7 +113,18 @@ outreachRouter.post("/send", async (c) => {
   } else if (body.churches?.length) {
     churches = body.churches;
   } else {
-    return c.json({ error: "Provide churchIds, city+state, or a churches array" }, 400);
+    // No filter provided — fetch all churches with a non-null email up to maxPerRun
+    const { data, error } = await supabase
+      .from("churches")
+      .select("*")
+      .not("email", "is", null)
+      .neq("email", "")
+      .limit(maxPerRun);
+    if (error) throw error;
+    if (!data?.length) {
+      return c.json({ error: "No churches with email addresses found. Extract emails first." }, 404);
+    }
+    churches = data as Church[];
   }
 
   if (!fromEmail) {
