@@ -83,7 +83,7 @@ outreachRouter.post("/send", async (c) => {
 
   const { senderName, senderOrganization } = body;
   const fromEmail = body.fromEmail ?? process.env.OUTREACH_FROM_EMAIL ?? "outreach@sisterclark.com";
-  const maxPerRun = Math.min(body.maxPerRun ?? 10, 10);
+  const maxPerRun = Math.min(body.maxPerRun ?? 5, 5);
 
   if (!senderName || !senderOrganization) {
     return c.json({ error: "senderName and senderOrganization are required" }, 400);
