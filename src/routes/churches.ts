@@ -152,6 +152,85 @@ churchesRouter.get("/extract-progress", async (c) => {
   return c.json({ total: total ?? 0, processed, remaining: remaining ?? 0, done: (remaining ?? 0) === 0 });
 });
 
+// Scoring function: count how many key fields are populated
+function completenessScore(ch: Record<string, unknown>): number {
+  return [ch.email, ch.phone, ch.website, ch.address, ch.denomination].filter(Boolean).length;
+}
+
+// GET /churches/duplicates — preview duplicate groups without deleting
+churchesRouter.get("/duplicates", async (c) => {
+  const { data, error } = await supabase
+    .from("churches")
+    .select("id, name, city, state, email, phone, website, address, denomination");
+  if (error) throw error;
+
+  const groups = new Map<string, typeof data>();
+  for (const ch of data ?? []) {
+    const key = `${ch.name?.trim().toLowerCase()}|${ch.city?.trim().toLowerCase()}|${ch.state?.trim().toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(ch);
+  }
+
+  const duplicateGroups = [...groups.values()]
+    .filter((g) => g.length > 1)
+    .map((g) => {
+      const sorted = [...g].sort((a, b) => completenessScore(b) - completenessScore(a));
+      return {
+        name: sorted[0].name,
+        city: sorted[0].city,
+        state: sorted[0].state,
+        count: g.length,
+        would_keep: sorted[0],
+        would_delete: sorted.slice(1),
+      };
+    });
+
+  return c.json({
+    duplicateGroupsFound: duplicateGroups.length,
+    totalDuplicateChurches: duplicateGroups.reduce((sum, g) => sum + g.would_delete.length, 0),
+    groups: duplicateGroups,
+  });
+});
+
+// POST /churches/dedupe — delete duplicates, keeping the most complete record per group
+churchesRouter.post("/dedupe", async (c) => {
+  const { data, error } = await supabase
+    .from("churches")
+    .select("id, name, city, state, email, phone, website, address, denomination");
+  if (error) throw error;
+
+  const groups = new Map<string, typeof data>();
+  for (const ch of data ?? []) {
+    const key = `${ch.name?.trim().toLowerCase()}|${ch.city?.trim().toLowerCase()}|${ch.state?.trim().toLowerCase()}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(ch);
+  }
+
+  const duplicateGroups = [...groups.values()].filter((g) => g.length > 1);
+
+  if (duplicateGroups.length === 0) {
+    return c.json({ duplicateGroupsFound: 0, churchesRemoved: 0, churchesKept: 0 });
+  }
+
+  const idsToDelete: string[] = [];
+  for (const group of duplicateGroups) {
+    const sorted = [...group].sort((a, b) => completenessScore(b) - completenessScore(a));
+    idsToDelete.push(...sorted.slice(1).map((ch) => ch.id));
+  }
+
+  const { error: deleteError } = await supabase
+    .from("churches")
+    .delete()
+    .in("id", idsToDelete);
+  if (deleteError) throw deleteError;
+
+  return c.json({
+    duplicateGroupsFound: duplicateGroups.length,
+    churchesRemoved: idsToDelete.length,
+    churchesKept: duplicateGroups.length,
+  });
+});
+
 // Extract emails one batch of 10 at a time — call repeatedly until remaining reaches 0
 churchesRouter.post("/extract-all-emails", async (c) => {
   const BATCH_SIZE = 10;
