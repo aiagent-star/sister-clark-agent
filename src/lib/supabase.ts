@@ -81,8 +81,10 @@ export interface OutreachRecord {
   state?: string;
   email_subject?: string;
   email_body?: string;
-  status: "sent" | "failed" | "skipped";
+  status: "sent" | "failed" | "skipped" | "opened";
+  resend_id?: string;
   sent_at?: string;
+  opened_at?: string;
   created_at?: string;
 }
 
@@ -96,6 +98,19 @@ export async function insertOutreachRecord(
     .select();
   console.log("[outreach_history] result — data:", JSON.stringify(data), "error:", JSON.stringify(error));
   if (error) throw error;
+}
+
+export async function updateOutreachOpened(resendId: string): Promise<{ church_name: string; email: string } | null> {
+  // Only advance to "opened" if currently "sent" — never overwrite a later status
+  const { data, error } = await supabase
+    .from("outreach_history")
+    .update({ status: "opened", opened_at: new Date().toISOString() })
+    .eq("resend_id", resendId)
+    .eq("status", "sent")
+    .select("church_name, email")
+    .maybeSingle();
+  if (error) throw error;
+  return data ?? null;
 }
 
 export async function getOutreachHistory(): Promise<OutreachRecord[]> {
@@ -176,6 +191,30 @@ export async function getPipeline(): Promise<Record<PipelineStage, PipelineRecor
     grouped[row.stage as PipelineStage]?.push(row);
   }
   return grouped;
+}
+
+// Advance pipeline stage only if currently at the expected prior stage (prevents moving backwards)
+export async function advancePipelineStage(
+  churchEmail: string,
+  fromStage: PipelineStage,
+  toStage: PipelineStage
+): Promise<boolean> {
+  // Look up church_id by email first
+  const { data: church } = await supabase
+    .from("churches")
+    .select("id")
+    .ilike("email", churchEmail)
+    .maybeSingle();
+  if (!church?.id) return false;
+
+  const { data, error } = await supabase
+    .from("pipeline")
+    .update({ stage: toStage, updated_at: new Date().toISOString() })
+    .eq("church_id", church.id)
+    .eq("stage", fromStage)
+    .select("id");
+  if (error) throw error;
+  return (data?.length ?? 0) > 0;
 }
 
 export async function addToPipeline(

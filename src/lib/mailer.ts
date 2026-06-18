@@ -24,6 +24,11 @@ export async function sendEmail(
     subject: options.subject,
     text: options.text,
     ...(replyTo ? { reply_to: replyTo } : {}),
+    headers: {
+      // Resend honours this header to enable open tracking pixel
+      "X-Entity-Ref-ID": options.to,
+    },
+    tags: [{ name: "tracking", value: "open" }],
   });
 
   if (error || !data) {

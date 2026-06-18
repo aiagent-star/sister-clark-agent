@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { supabase } from "../lib/supabase.js";
+import { supabase, updateOutreachOpened, advancePipelineStage } from "../lib/supabase.js";
 
 export const webhooksRouter = new Hono();
 
@@ -20,7 +20,36 @@ webhooksRouter.post("/resend", async (c) => {
 
   console.log("[webhook/resend] received event:", payload.type, JSON.stringify(payload.data));
 
-  // Only handle bounce events
+  if (payload.type === "email.opened") {
+    const resendId = payload.data.email_id;
+    if (!resendId) {
+      return c.json({ received: true, action: "ignored", reason: "no email_id in payload" });
+    }
+
+    console.log("[webhook/resend] open event for resend_id:", resendId);
+
+    const updated = await updateOutreachOpened(resendId).catch((err) => {
+      console.error("[webhook/resend] updateOutreachOpened error:", err.message);
+      return null;
+    });
+
+    let pipelineAdvanced = false;
+    if (updated?.email) {
+      pipelineAdvanced = await advancePipelineStage(updated.email, "emailed", "opened").catch(() => false);
+    }
+
+    console.log("[webhook/resend] open handled — outreach updated:", !!updated, "pipeline advanced:", pipelineAdvanced);
+    return c.json({
+      received: true,
+      action: "open_tracked",
+      resend_id: resendId,
+      outreach_updated: !!updated,
+      church: updated?.church_name ?? null,
+      pipeline_advanced: pipelineAdvanced,
+    });
+  }
+
+  // Only handle bounce events beyond this point
   if (payload.type !== "email.bounced") {
     return c.json({ received: true, action: "ignored", type: payload.type });
   }

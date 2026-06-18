@@ -195,7 +195,7 @@ outreachRouter.post("/send", async (c) => {
       }
 
       try {
-        await sendEmail({ from: fromEmail, to: toEmail, subject: item.subject, text: item.body });
+        const { id: resendId } = await sendEmail({ from: fromEmail, to: toEmail, subject: item.subject, text: item.body });
 
         console.log("[outreach/send] email sent via Resend, now logging to outreach_history for:", item.church.name);
         await insertOutreachRecord({
@@ -206,6 +206,7 @@ outreachRouter.post("/send", async (c) => {
           email_subject: item.subject,
           email_body: item.body,
           status: "sent",
+          resend_id: resendId,
         });
         console.log("[outreach/send] outreach_history insert complete for:", item.church.name);
 
