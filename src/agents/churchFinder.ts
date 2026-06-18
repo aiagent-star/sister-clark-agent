@@ -125,45 +125,69 @@ Return ONLY a JSON array with this structure (no prose):
 ]`;
 }
 
+const BATCH_SIZE = 5;
+const BATCH_STAGGER_MS = 300;
+const SCORE_TIMEOUT_MS = 45_000;
+
+async function scoreBatch(places: PlaceResult[], params: ChurchSearchParams): Promise<Church[]> {
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 2048,
+    messages: [{ role: "user", content: buildScoringPrompt(places, params) }],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") return [];
+  const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return [];
+  return JSON.parse(jsonMatch[0]) as Church[];
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 export async function findChurches(
   params: ChurchSearchParams
-): Promise<ChurchFinderResult> {
-  // Step 1: Get real church data from Google Places
+): Promise<ChurchFinderResult & { partial?: boolean }> {
+  // Step 1: Get real church data from Google Places, cap at 20
   const radiusMeters = params.radiusMiles !== undefined
     ? Math.round(params.radiusMiles * 1609)
     : undefined;
-  const places = await searchChurches(params.city, params.state, params.denomination, params.zipCode, radiusMeters);
+  const allPlaces = await searchChurches(params.city, params.state, params.denomination, params.zipCode, radiusMeters);
+  const places = allPlaces.slice(0, 20);
 
   if (places.length === 0) {
     return { city: params.city, state: params.state, churches: [] };
   }
 
-  // Step 2: Pass real data to Claude for scoring and enrichment
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 8192,
-    messages: [
-      {
-        role: "user",
-        content: buildScoringPrompt(places, params),
-      },
-    ],
-  });
-
-  const content = message.content[0];
-  if (content.type !== "text") {
-    throw new Error("Unexpected response type from Claude");
+  // Step 2: Split into batches of 5, launch in parallel with staggered starts
+  const batches: PlaceResult[][] = [];
+  for (let i = 0; i < places.length; i += BATCH_SIZE) {
+    batches.push(places.slice(i, i + BATCH_SIZE));
   }
 
-  const jsonMatch = content.text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    throw new Error("Could not parse church scoring from Claude response");
+  const deadline = Date.now() + SCORE_TIMEOUT_MS;
+  const settled: Church[] = [];
+  let partial = false;
+
+  for (let idx = 0; idx < batches.length; idx++) {
+    // If we're out of time, return what we have
+    if (Date.now() >= deadline) { partial = true; break; }
+
+    if (idx > 0) await sleep(BATCH_STAGGER_MS);
+
+    // Race this batch against the remaining time
+    const remaining = deadline - Date.now();
+    const result = await Promise.race([
+      scoreBatch(batches[idx], params),
+      sleep(remaining).then(() => null as Church[] | null),
+    ]);
+
+    if (result === null) { partial = true; break; }
+    settled.push(...result);
   }
 
-  let churches: Church[] = JSON.parse(jsonMatch[0]);
-
-  // Sort by fitScore descending
-  churches = churches.sort((a, b) => b.fitScore - a.fitScore);
-
-  return { city: params.city, state: params.state, churches };
+  const churches = settled.sort((a, b) => b.fitScore - a.fitScore);
+  return { city: params.city, state: params.state, churches, ...(partial ? { partial: true } : {}) };
 }
