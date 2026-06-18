@@ -71,22 +71,56 @@ churchesRouter.post("/find-and-save", async (c) => {
   const params = parseSearchParams(body);
   const { city, state, churches } = await findChurches(params);
 
-  const saved = await saveChurches(
-    churches.map((ch: Church) => ({
-      name: ch.name,
-      denomination: ch.denomination,
-      address: ch.address,
-      phone: ch.phone,
-      website: ch.website,
-      email: ch.email,
-      city,
-      state,
-      zip_code: params.zipCode,
-      notes: ch.fitReason ?? ch.notes,
-    }))
+  // Fetch all existing church names for this city/state in one query
+  const { data: existing } = await supabase
+    .from("churches")
+    .select("name")
+    .ilike("city", city)
+    .ilike("state", state);
+
+  const existingNames = new Set(
+    (existing ?? []).map((r: { name: string }) => r.name.trim().toLowerCase())
   );
 
-  return c.json({ city, state, churches: saved });
+  const toInsert: typeof churches = [];
+  const alreadyExists: typeof churches = [];
+
+  for (const ch of churches) {
+    if (existingNames.has(ch.name.trim().toLowerCase())) {
+      alreadyExists.push(ch);
+    } else {
+      toInsert.push(ch);
+    }
+  }
+
+  const saved = toInsert.length
+    ? await saveChurches(
+        toInsert.map((ch: Church) => ({
+          name: ch.name,
+          denomination: ch.denomination,
+          address: ch.address,
+          phone: ch.phone,
+          website: ch.website,
+          email: ch.email,
+          city,
+          state,
+          zip_code: params.zipCode,
+          notes: ch.fitReason ?? ch.notes,
+        }))
+      )
+    : [];
+
+  return c.json({
+    city,
+    state,
+    summary: {
+      total_found: churches.length,
+      new: saved.length,
+      already_exists: alreadyExists.length,
+    },
+    churches: saved,
+    skipped: alreadyExists.map((ch) => ({ name: ch.name, reason: "already_exists" })),
+  });
 });
 
 // List saved churches (optionally filter by city/state, with pagination)

@@ -92,6 +92,7 @@ export async function searchChurches(
         `Baptist churches in ${location}`,
         `Pentecostal churches in ${location}`,
         `Non-denominational churches in ${location}`,
+        `AME churches in ${location}`,
       ];
 
   const resultSets = await Promise.all(
@@ -110,5 +111,5 @@ export async function searchChurches(
     }
   }
 
-  return unique.slice(0, 20);
+  return unique;
 }
