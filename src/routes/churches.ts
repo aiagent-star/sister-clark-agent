@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { findChurches } from "../agents/churchFinder.js";
+import { findChurches, scoreSingleChurch } from "../agents/churchFinder.js";
 import type { Church, ChurchSearchParams } from "../agents/churchFinder.js";
 import {
   saveChurches,
@@ -46,6 +46,40 @@ function parseSearchParams(body: Record<string, unknown>): ChurchSearchParams {
     growthStage: stageRaw as ChurchSearchParams["growthStage"] | undefined,
   };
 }
+
+// Manually create a single church record with auto-scoring
+churchesRouter.post("/", async (c) => {
+  const body = await parseBody(c);
+
+  if (!body.name || !body.email) {
+    return c.json({ error: "name and email are required" }, 400);
+  }
+
+  const name = String(body.name).trim();
+  const email = String(body.email).trim();
+  const city = body.city ? String(body.city).trim() : undefined;
+  const state = body.state ? String(body.state).trim() : undefined;
+  const denomination = body.denomination ? String(body.denomination).trim() : undefined;
+  const congregation = body.congregation !== undefined ? Number(body.congregation) : undefined;
+  const pastor = body.pastor ? String(body.pastor).trim() : undefined;
+
+  const { fitScore, tierRecommendation, fitReason } = await scoreSingleChurch({
+    name, email, pastor, city, state, denomination, congregation,
+  });
+
+  const [saved] = await saveChurches([{
+    name,
+    email,
+    city,
+    state,
+    denomination,
+    notes: fitReason,
+  }]);
+
+  return c.json({
+    church: { ...saved, fitScore, tierRecommendation, fitReason },
+  }, 201);
+});
 
 // Find churches via AI (no storage)
 churchesRouter.post("/find", async (c) => {

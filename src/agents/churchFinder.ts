@@ -125,6 +125,53 @@ Return ONLY a JSON array with this structure (no prose):
 ]`;
 }
 
+export interface ManualChurchInput {
+  name: string;
+  email: string;
+  pastor?: string;
+  city?: string;
+  state?: string;
+  denomination?: string;
+  congregation?: number;
+}
+
+export async function scoreSingleChurch(input: ManualChurchInput): Promise<Pick<Church, "fitScore" | "tierRecommendation" | "fitReason">> {
+  const details = [
+    `Name: ${input.name}`,
+    input.denomination ? `Denomination: ${input.denomination}` : null,
+    input.city ? `City: ${input.city}${input.state ? `, ${input.state}` : ""}` : null,
+    input.congregation ? `Congregation size: ~${input.congregation} members` : null,
+    input.pastor ? `Pastor: ${input.pastor}` : null,
+  ].filter(Boolean).join("\n");
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 256,
+    messages: [{
+      role: "user",
+      content: `You are scoring a church for fit with Sister Clark, an AI voice receptionist SaaS for churches.
+
+Sister Clark's ICP and tier definitions:
+- Tier 0 Economy ($97/mo, 100 min): 1–75 members, 0 paid staff — micro churches. Score 7–9 if active.
+- Tier 1 Essential ($197/mo, 250 min): 75–250 members, 0–1 staff — small growing churches. Score 8–10 if understaffed.
+- Tier 2 Enterprise ($297/mo, 500 min): 250–750 members, 2–5 staff — mid-size (SWEET SPOT). Score 8–10.
+- Tier 3 Executive ($597/mo, 1,000 min): 750–2000 members, 6+ staff. Score 6–8.
+- Bad fit (1–3): mega-church (2000+) with dedicated IT, or clearly inactive.
+
+Church details:
+${details}
+
+Return ONLY valid JSON (no prose):
+{ "fitScore": 8, "tierRecommendation": 1, "fitReason": "One sentence." }`,
+    }],
+  });
+
+  const text = message.content[0].type === "text" ? message.content[0].text : "";
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) return { fitScore: 5, tierRecommendation: 1, fitReason: "Unable to score automatically." };
+  return JSON.parse(match[0]) as Pick<Church, "fitScore" | "tierRecommendation" | "fitReason">;
+}
+
 const BATCH_SIZE = 5;
 const BATCH_STAGGER_MS = 300;
 const SCORE_TIMEOUT_MS = 45_000;
