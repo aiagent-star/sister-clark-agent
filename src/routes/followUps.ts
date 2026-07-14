@@ -4,6 +4,7 @@ import { processFollowUps, getFollowUpStatus } from "../agents/followUpAgent.js"
 export const followUpsRouter = new Hono();
 
 // POST /follow-ups/process — trigger follow-up agent (called by cron or manually)
+// Accepts an empty body or no body — no input parameters required
 followUpsRouter.post("/process", async (c) => {
   const result = await processFollowUps();
   return c.json(result);

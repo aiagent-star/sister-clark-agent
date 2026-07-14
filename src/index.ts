@@ -16,8 +16,19 @@ const app = new Hono();
 app.route("/webhooks", webhooksRouter);
 
 app.use("*", cors({
-  origin: ["https://outreach.sisterclark.com", "https://sisterclark.com"],
-  allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  origin: (origin) => {
+    const allowed = [
+      "https://outreach.sisterclark.com",
+      "https://sisterclark.com",
+    ];
+    // Allow Lovable preview/staging origins and local dev
+    if (!origin) return "*";
+    if (allowed.includes(origin)) return origin;
+    if (origin.endsWith(".lovable.app") || origin.endsWith(".lovableproject.com")) return origin;
+    if (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1")) return origin;
+    return allowed[0]; // default — CORS header still sent, browser blocks non-matching
+  },
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization"],
   maxAge: 86400,
 }));
